@@ -1,2 +1,4 @@
-Messenger server on port 3002
-MongoDB connected
+
+> ai-web-chat-app@1.0.0 start
+> node server.js
+

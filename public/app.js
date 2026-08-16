@@ -16,6 +16,8 @@ let longPressTimer = null;
 let swipeReplyState = null;
 let suppressNextDocumentClick = false;
 const REACTION_EMOJIS = ['\u{1F44D}', '\u2764\uFE0F', '\u{1F602}', '\u{1F62E}', '\u{1F622}', '\u{1F64F}'];
+const URL_PATTERN = /\b((?:https?:\/\/|www\.)[^\s<>"']+|(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/[^\s<>"']*)?)/gi;
+const TRAILING_URL_PUNCTUATION = /[.,!?;:)\]}]+$/;
 
 const API_BASE = '/api';
 
@@ -216,9 +218,7 @@ function buildMessageElement(msg) {
     body.appendChild(imgLink);
   }
   if (msg.text) {
-    const text = document.createElement('div');
-    text.textContent = msg.text;
-    body.appendChild(text);
+    body.appendChild(buildLinkedTextElement(msg.text));
   }
 
   const meta = document.createElement('small');
@@ -245,6 +245,48 @@ function buildMessageElement(msg) {
   installLongPressReaction(div);
   installSwipeReply(div);
   return div;
+}
+
+function buildLinkedTextElement(value) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'message-text';
+  const text = String(value);
+  let lastIndex = 0;
+
+  for (const match of text.matchAll(URL_PATTERN)) {
+    const rawUrl = match[0];
+    const matchIndex = match.index ?? 0;
+    const trailing = rawUrl.match(TRAILING_URL_PUNCTUATION)?.[0] || '';
+    const displayUrl = trailing ? rawUrl.slice(0, -trailing.length) : rawUrl;
+
+    if (!displayUrl) continue;
+    if (matchIndex > lastIndex) {
+      wrapper.appendChild(document.createTextNode(text.slice(lastIndex, matchIndex)));
+    }
+
+    const link = document.createElement('a');
+    link.className = 'message-link';
+    link.href = normalizeLinkHref(displayUrl);
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = displayUrl;
+    wrapper.appendChild(link);
+
+    if (trailing) {
+      wrapper.appendChild(document.createTextNode(trailing));
+    }
+    lastIndex = matchIndex + rawUrl.length;
+  }
+
+  if (lastIndex < text.length) {
+    wrapper.appendChild(document.createTextNode(text.slice(lastIndex)));
+  }
+
+  return wrapper;
+}
+
+function normalizeLinkHref(url) {
+  return /^https?:\/\//i.test(url) ? url : `https://${url}`;
 }
 
 function buildInlineReplyElement(reply) {
