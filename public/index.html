@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Messenger</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.socket.io/4.8.0/socket.io.min.js"></script>
+</head>
+<body>
+  <div id="app">
+    <!-- Login/Signup -->
+    <div id="auth" class="screen">
+      <div class="auth-card">
+        <h1 class="brand-title">
+          <button class="brand-link" onclick="openBrandAuth()">
+            <span class="brand-accent">PLM</span>
+          </button>
+          Messenger
+        </h1>
+        <div id="signup-form">
+          <input type="email" id="signup-email" placeholder="Email">
+          <input type="password" id="signup-password" placeholder="Password">
+          <input type="text" id="signup-code" placeholder="4-digit code" maxlength="4">
+          <button onclick="signup()">Create Account</button>
+        </div>
+        <div id="login-form" class="hidden">
+          <input type="email" id="login-email" placeholder="Email">
+          <input type="password" id="login-password" placeholder="Password">
+          <button onclick="login()">Sign In</button>
+        </div>
+        <p onclick="toggleAuth()">Switch</p>
+      </div>
+    </div>
+
+    <!-- Brand Message Modal -->
+    <div id="brand-modal" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>PLM</h3>
+          <button class="ghost-btn" onclick="closeBrandModal()">Close</button>
+        </div>
+        <div id="brand-auth">
+          <p class="modal-subtitle">Enter password to view the message.</p>
+          <input type="password" id="brand-password" placeholder="Password">
+          <button class="send-btn" onclick="submitBrandPassword()">Unlock</button>
+          <p id="brand-error" class="error-text hidden">Incorrect password.</p>
+        </div>
+        <div id="brand-message" class="brand-message hidden">
+          <p>
+            Hi I am Pronoy Chowdhury Pothik, developer of this web app. However the whole app is dedicated
+            to the most wonderful and beloving person through my eyes. Her name is Maimun Akhter Mahi.
+            Though it is not totallly possible to express all of the love in my heart for her, but just a
+            single gesture it is, this little webapp for a more secure communication. Thank you, God bless.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Messenger UI -->
+    <div id="messenger" class="screen hidden messenger">
+      <!-- Left Sidebar -->
+      <div class="sidebar">
+        <div class="header">
+          <div class="header-top">
+            <h2>Your Code: <span id="my-code"></span></h2>
+            <div class="appbar-actions">
+              <button id="notify-btn" class="ghost-btn" onclick="enableNotifications()">Enable notifications</button>
+              <div class="dropdown">
+                <button class="ghost-btn" onclick="toggleDeleteMenu(event)">Delete</button>
+                <div id="delete-menu" class="dropdown-menu hidden">
+                  <button class="dropdown-item" onclick="deleteMessages('half')">Delete oldest 50%</button>
+                  <button class="dropdown-item danger" onclick="deleteMessages('all')">Delete all messages</button>
+                </div>
+              </div>
+              <button class="ghost-btn" onclick="logout()">Logout</button>
+            </div>
+          </div>
+          <div class="header-search">
+            <input type="text" id="search-code" placeholder="Search by code">
+            <button onclick="searchUser()">Search</button>
+          </div>
+        </div>
+        <div class="connections">
+          <div class="connections-header">
+            <h4>Connections</h4>
+            <button class="ghost-btn" onclick="toggleConnections()">All Connections</button>
+          </div>
+          <div id="connections-panel" class="connections-panel hidden">
+            <div id="connections-list" class="connections-list"></div>
+            <div id="connections-empty" class="connections-empty hidden">No connections yet.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Chat Window -->
+      <div class="chat-window">
+        <div id="panel-handle" class="panel-handle" aria-hidden="true"></div>
+        <div id="panel-hint" class="panel-hint" aria-hidden="true">Tap to open the panel</div>
+        <div id="chat-header" class="hidden">
+          <h3 id="chat-title"></h3>
+          <div id="chat-typing" class="typing-indicator hidden">Typing...</div>
+        </div>
+        <div id="pinned-message" class="pinned-message hidden"></div>
+        <div id="no-chat" class="no-chat">Search by code to start a chat.</div>
+        <div id="messages" class="messages"></div>
+        <div class="message-input">
+          <div id="reply-preview" class="reply-preview hidden"></div>
+          <input type="file" id="image-input" class="hidden" accept="image/*">
+          <button class="attach-btn" type="button" title="Add photo" aria-label="Add photo" onclick="openImagePicker()">+</button>
+          <div id="image-preview" class="image-preview hidden">
+            <img id="image-preview-img" alt="">
+            <button type="button" class="remove-image-btn" aria-label="Remove photo" onclick="clearSelectedImage()">×</button>
+          </div>
+          <input type="text" id="message-text" placeholder="Type a message..." onkeypress="if(event.key==='Enter') sendMessage()">
+          <button class="send-btn" onclick="sendMessage()">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
