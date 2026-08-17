@@ -206,16 +206,20 @@ function buildMessageElement(msg) {
     body.appendChild(buildInlineReplyElement(msg.reply_to));
   }
   if (msg.image?.data) {
-    const imgLink = document.createElement('a');
-    imgLink.href = msg.image.data;
-    imgLink.target = '_blank';
-    imgLink.rel = 'noopener';
+    const imgButton = document.createElement('button');
+    imgButton.type = 'button';
+    imgButton.className = 'message-image-button';
+    imgButton.setAttribute('aria-label', 'Open image fullscreen');
     const img = document.createElement('img');
     img.className = 'message-image';
     img.src = msg.image.data;
     img.alt = msg.image.name || 'Shared photo';
-    imgLink.appendChild(img);
-    body.appendChild(imgLink);
+    imgButton.appendChild(img);
+    imgButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      openFullscreenImage(msg.image.data, img.alt);
+    });
+    body.appendChild(imgButton);
   }
   if (msg.text) {
     body.appendChild(buildLinkedTextElement(msg.text));
@@ -289,12 +293,29 @@ function normalizeLinkHref(url) {
   return /^https?:\/\//i.test(url) ? url : `https://${url}`;
 }
 
+function openFullscreenImage(src, alt = 'Shared image fullscreen') {
+  const modal = document.getElementById('image-modal');
+  const image = document.getElementById('fullscreen-image');
+  if (!modal || !image || !src) return;
+  image.src = src;
+  image.alt = alt;
+  modal.classList.remove('hidden');
+}
+
+function closeFullscreenImage() {
+  const modal = document.getElementById('image-modal');
+  const image = document.getElementById('fullscreen-image');
+  if (!modal || !image) return;
+  modal.classList.add('hidden');
+  image.removeAttribute('src');
+}
+
 function buildInlineReplyElement(reply) {
   const wrapper = document.createElement('div');
   wrapper.className = 'quoted-reply';
   const author = document.createElement('div');
   author.className = 'quoted-reply-author';
-  author.textContent = reply.sender_id == currentUser?.id ? 'You' : (reply.sender_name || 'Contact');
+  author.textContent = displayUserLabel(reply.sender_id);
   const text = document.createElement('div');
   text.className = 'quoted-reply-text';
   text.textContent = reply.text || (reply.has_image ? 'Photo' : 'Message');
@@ -320,7 +341,7 @@ function startReply(msg) {
   activeReply = {
     id: msg.id,
     sender_id: String(msg.from_id),
-    sender_name: msg.from_id == currentUser?.id ? 'You' : (currentChat?.partner?.email || 'Contact'),
+    sender_name: displayUserLabel(msg.from_id),
     text: getMessagePreviewText(msg),
     has_image: Boolean(msg.image?.data)
   };
@@ -344,7 +365,7 @@ function renderActiveReply() {
   content.className = 'reply-preview-content';
   const author = document.createElement('div');
   author.className = 'reply-preview-author';
-  author.textContent = activeReply.sender_name || 'Contact';
+  author.textContent = displayUserLabel(activeReply.sender_id);
   const text = document.createElement('div');
   text.className = 'reply-preview-text';
   text.textContent = activeReply.text || (activeReply.has_image ? 'Photo' : 'Message');
@@ -604,12 +625,16 @@ function hideReactionDetails() {
 }
 
 function reactionName(userId) {
+  return displayUserLabel(userId);
+}
+
+function displayUserLabel(userId) {
   if (userId == currentUser?.id) return 'You';
   if (userId == currentChat?.partner?.id) {
-    return currentChat.partner.email || `Code ${currentChat.partner.code}`;
+    return `Code ${currentChat.partner.code}`;
   }
   const cached = userCache.get(String(userId));
-  return cached?.email || cached?.code || 'Unknown user';
+  return cached?.code ? `Code ${cached.code}` : 'Contact';
 }
 
 function toggleReaction(messageId, emoji) {
@@ -732,13 +757,19 @@ async function loadConnections() {
       button.className = 'connection-item';
       button.type = 'button';
       const last = user.last_message ? new Date(user.last_message).toLocaleString() : '';
-      button.innerHTML = `
-        <div class="connection-main">
-          ${user.email}
-          ${user.unread_count ? `<span class="unread-badge">${user.unread_count}</span>` : ''}
-        </div>
-        <div class="connection-sub">Code ${user.code}${last ? ' - ' + last : ''}</div>
-      `;
+      const main = document.createElement('div');
+      main.className = 'connection-main';
+      main.appendChild(document.createTextNode(`Code ${user.code}`));
+      if (user.unread_count) {
+        const badge = document.createElement('span');
+        badge.className = 'unread-badge';
+        badge.textContent = user.unread_count;
+        main.appendChild(badge);
+      }
+      const sub = document.createElement('div');
+      sub.className = 'connection-sub';
+      sub.textContent = last || 'No recent time';
+      button.append(main, sub);
       button.addEventListener('click', () => openChat(user));
       list.appendChild(button);
     });
@@ -811,6 +842,18 @@ function selectImage(file) {
     alert('Could not read that image.');
     clearSelectedImage();
   });
+}
+
+function handleMessagePaste(event) {
+  if (!currentChat) return;
+  const items = Array.from(event.clipboardData?.items || []);
+  const imageItem = items.find((item) => item.kind === 'file' && item.type.startsWith('image/'));
+  if (!imageItem) return;
+
+  const file = imageItem.getAsFile();
+  if (!file) return;
+  event.preventDefault();
+  selectImage(file);
 }
 
 function resizeImage(file, maxSize, quality) {
@@ -912,7 +955,7 @@ function showIncomingNotification(msg) {
   if (inCurrentChat && !document.hidden) return;
 
   const sender = userCache.get(String(msg.from_id));
-  const title = sender ? `New message from ${sender.email}` : 'New message';
+  const title = sender?.code ? `New message from Code ${sender.code}` : 'New message';
   const body = msg.text || (msg.image?.data ? 'Photo' : 'New message');
 
   if (swRegistration && swRegistration.showNotification) {
@@ -994,6 +1037,18 @@ document.addEventListener('click', () => {
   hideReactionDetails();
 });
 
+document.getElementById('image-modal')?.addEventListener('click', (event) => {
+  if (event.target.id === 'image-modal') {
+    closeFullscreenImage();
+  }
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    closeFullscreenImage();
+  }
+});
+
 document.getElementById('brand-password')?.addEventListener('keypress', (event) => {
   if (event.key === 'Enter') {
     submitBrandPassword();
@@ -1007,6 +1062,8 @@ document.getElementById('message-text')?.addEventListener('input', () => {
 document.getElementById('message-text')?.addEventListener('blur', () => {
   stopTyping();
 });
+
+document.getElementById('message-text')?.addEventListener('paste', handleMessagePaste);
 
 document.getElementById('image-input')?.addEventListener('change', (event) => {
   selectImage(event.target.files?.[0]);

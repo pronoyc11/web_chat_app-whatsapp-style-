@@ -82,6 +82,18 @@ const messageSchema = new mongoose.Schema({
 const User = mongoose.model('User', userSchema);
 const Message = mongoose.model('Message', messageSchema);
 
+function serializeReply(reply) {
+  if (!reply?.id) return null;
+  const senderName = String(reply.sender_name || '');
+  return {
+    id: reply.id,
+    sender_id: String(reply.sender_id || ''),
+    sender_name: senderName.includes('@') ? '' : senderName,
+    text: String(reply.text || ''),
+    has_image: Boolean(reply.has_image)
+  };
+}
+
 // Signup
 app.post('/api/signup', async (req, res) => {
   if (!ensureDbReady(res)) return;
@@ -115,7 +127,7 @@ app.get('/api/user/:code', (req, res) => {
   if (!ensureDbReady(res)) return;
   User.findOne({ code: req.params.code }).then((user) => {
     if (!user) return res.status(404).json({ error: 'User not found' });
-    res.json({ id: user._id.toString(), code: user.code, email: user.email });
+    res.json({ id: user._id.toString(), code: user.code });
   }).catch(() => {
     res.status(500).json({ error: 'Server error' });
   });
@@ -133,7 +145,7 @@ app.get('/api/messages/:chatId/:userId', (req, res) => {
       from_id: row.from_id,
       text: row.text || '',
       image: row.image || null,
-      reply_to: row.reply_to?.id ? row.reply_to : null,
+      reply_to: serializeReply(row.reply_to),
       reactions: row.reactions || [],
       pinned_at: row.pinned_at || null,
       pinned_by: row.pinned_by || '',
@@ -254,7 +266,7 @@ app.get('/api/connections/:userId', async (req, res) => {
 
     const users = await User.find(
       { _id: { $in: senderIds } },
-      { email: 1, code: 1 }
+      { code: 1 }
     ).lean();
 
     const userMap = new Map(users.map(u => [u._id.toString(), u]));
@@ -263,7 +275,6 @@ app.get('/api/connections/:userId', async (req, res) => {
       if (!user) return null;
       return {
         id: user._id.toString(),
-        email: user.email,
         code: user.code,
         last_message: r.last_message,
         unread_count: r.unread_count || 0
@@ -308,12 +319,12 @@ io.on('connection', (socket) => {
         const original = await Message.findOne({ _id: replyTo.id, chat_id: chatId }).lean();
         if (original) {
           const originalSender = mongoose.Types.ObjectId.isValid(original.from_id)
-            ? await User.findById(original.from_id, { email: 1, code: 1 }).lean()
+            ? await User.findById(original.from_id, { code: 1 }).lean()
             : null;
           safeReply = {
             id: original._id.toString(),
             sender_id: String(original.from_id),
-            sender_name: String(originalSender?.email || originalSender?.code || 'Contact').slice(0, 120),
+            sender_name: String(originalSender?.code ? `Code ${originalSender.code}` : 'Contact').slice(0, 120),
             text: String(original.text || '').trim().slice(0, 140),
             has_image: Boolean(original.image?.data)
           };
@@ -338,7 +349,7 @@ io.on('connection', (socket) => {
         from_id: userId,
         text: doc.text || '',
         image: doc.image || null,
-        reply_to: doc.reply_to?.id ? doc.reply_to : null,
+        reply_to: serializeReply(doc.reply_to),
         reactions: doc.reactions || [],
         pinned_at: doc.pinned_at || null,
         pinned_by: doc.pinned_by || '',
@@ -427,7 +438,7 @@ io.on('connection', (socket) => {
           from_id: updated.from_id,
           text: updated.text || '',
           image: updated.image || null,
-          reply_to: updated.reply_to?.id ? updated.reply_to : null,
+          reply_to: serializeReply(updated.reply_to),
           reactions: updated.reactions || [],
           pinned_at: updated.pinned_at || null,
           pinned_by: updated.pinned_by || '',
