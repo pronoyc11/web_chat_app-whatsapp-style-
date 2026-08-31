@@ -1,4 +1,4 @@
-# AI Web Chat App
+# AI Web Chat App   new
 
 A lightweight real-time messaging app built with Node.js, Express, Socket.IO, and MongoDB. Users can sign up with an email, password, and a unique 4-digit code, then start private conversations with other users by entering their code.
 
